@@ -1,0 +1,38 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: chaosinjector
+
+# ChaosInjector configuration. All values may reference ${ENV_VAR} for secrets;
+# resolved secrets are never logged.
+chaosinjector:
+  version: 0.1.0
+  docker:
+    # Default Docker daemon endpoint. The MVP path is the local unix socket.
+    default-host: unix:///var/run/docker.sock
+  experiment:
+    # Hard cap enforced regardless of a request's requested duration.
+    max-duration-seconds: 3600
+    # When true, only one experiment may be ACTIVE across the whole daemon;
+    # when false, the guard is per-target-container only.
+    single-active-global: false
+    default-baseline-seconds: 15
+  metrics:
+    sample-interval-ms: 1000
+    probe-timeout-ms: 3000
+  helper:
+    # Image (iproute2 + stress-ng) that network/CPU/RAM injectors run against
+    # the target. Built and published separately; see chaos_injector_spec.md.
+    image: chaosinjector/helper:latest
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+
+logging:
+  level:
+    com.chaosinjector: INFO
