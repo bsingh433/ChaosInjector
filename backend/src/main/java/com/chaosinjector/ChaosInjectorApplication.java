@@ -2,6 +2,7 @@ package com.chaosinjector;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 
 /**
  * ChaosInjector — entry point.
@@ -12,6 +13,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * from {@code static/} by the same process (single deployable JAR).
  */
 @SpringBootApplication
+@ConfigurationPropertiesScan
 public class ChaosInjectorApplication {
 
     public static void main(String[] args) {
