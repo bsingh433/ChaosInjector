@@ -4,11 +4,14 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import com.chaosinjector.config.ChaosInjectorProperties;
 import com.chaosinjector.config.EnvInterpolator;
 import com.chaosinjector.config.Errors;
+import com.chaosinjector.engine.Labels;
 
 /**
  * Holds Docker daemon connections registered by the operator, keyed by an opaque
@@ -16,6 +19,8 @@ import com.chaosinjector.config.Errors;
  */
 @Component
 public class ConnectionRegistry implements AdapterResolver {
+
+    private static final Logger log = LoggerFactory.getLogger(ConnectionRegistry.class);
 
     private final DockerClientFactory factory;
     private final ChaosInjectorProperties props;
@@ -41,9 +46,22 @@ public class ConnectionRegistry implements AdapterResolver {
         String resolvedCert = interpolator.interpolate(certPath);
         TargetAdapter adapter = new DockerTargetAdapter(factory.create(resolvedHost, resolvedCert, tlsVerify));
         adapter.verifyConnection();
+        sweepOrphanHelpers(adapter);
         String id = UUID.randomUUID().toString();
         byId.put(id, adapter);
         return id;
+    }
+
+    /** Remove any helper containers left behind by a previously crashed run. */
+    private void sweepOrphanHelpers(TargetAdapter adapter) {
+        try {
+            int removed = adapter.removeContainersByLabel(Labels.MARKER, Labels.MARKER_VALUE);
+            if (removed > 0) {
+                log.info("Swept {} orphaned ChaosInjector helper container(s)", removed);
+            }
+        } catch (RuntimeException e) {
+            log.warn("Orphan helper sweep failed: {}", e.getMessage());
+        }
     }
 
     @Override

@@ -25,6 +25,8 @@ public record ExperimentContext(
         String helperImage) {
 
     public Map<String, String> helperLabels() {
-        return Map.of(Labels.EXPERIMENT, experimentId);
+        return Map.of(
+                Labels.EXPERIMENT, experimentId,
+                Labels.MARKER, Labels.MARKER_VALUE);
     }
 }
