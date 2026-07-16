@@ -24,9 +24,10 @@ hs_err_pid*
 replay_pid*
 
 # --- Build output ---
-target/
-backend/target/
-frontend/dist/
+# Anchored so the Maven output dir is ignored but NOT the `target` Java package.
+/target/
+/backend/target/
+/frontend/dist/
 
 # --- Node / frontend ---
 node_modules/
