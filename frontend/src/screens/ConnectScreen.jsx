@@ -9,7 +9,7 @@ export default function ConnectScreen() {
   const navigate = useNavigate();
 
   const [mode, setMode] = useState('socket'); // 'socket' | 'tcp'
-  const [host, setHost] = useState('unix:///var/run/docker.sock');
+  const [host, setHost] = useState('');
   const [certPath, setCertPath] = useState('');
   const [tlsVerify, setTlsVerify] = useState(false);
   const [status, setStatus] = useState(null);
@@ -22,7 +22,7 @@ export default function ConnectScreen() {
     try {
       const payload =
         mode === 'socket'
-          ? { host: 'unix:///var/run/docker.sock', tlsVerify: false }
+          ? { host: null, tlsVerify: false } // backend auto-detects: unix socket or Windows named pipe
           : { host, certPath: certPath || null, tlsVerify };
       const res = await api.connect(payload);
       setConnectionId(res.connectionId);
@@ -44,8 +44,8 @@ export default function ConnectScreen() {
         <label className="field">
           <span>Connection type</span>
           <select value={mode} onChange={(e) => setMode(e.target.value)}>
-            <option value="socket">Local socket (unix:///var/run/docker.sock)</option>
-            <option value="tcp">Remote TCP</option>
+            <option value="socket">Local Docker (auto-detect socket / Windows pipe)</option>
+            <option value="tcp">Custom host (TCP / npipe)</option>
           </select>
         </label>
 
@@ -54,8 +54,8 @@ export default function ConnectScreen() {
             <label className="field">
               <span>Host</span>
               <input
-                value={host === 'unix:///var/run/docker.sock' ? '' : host}
-                placeholder="tcp://host:2376"
+                value={host}
+                placeholder="tcp://host:2376 or npipe:////./pipe/docker_engine"
                 onChange={(e) => setHost(e.target.value)}
               />
             </label>

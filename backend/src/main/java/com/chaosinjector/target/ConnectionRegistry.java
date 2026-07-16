@@ -41,15 +41,33 @@ public class ConnectionRegistry implements AdapterResolver {
      * @return the new connection id
      */
     public String connect(String host, String certPath, boolean tlsVerify) {
-        String resolvedHost = interpolator.interpolate(
-                host == null || host.isBlank() ? props.getDocker().getDefaultHost() : host);
+        String requested = host == null || host.isBlank() ? localDefaultHost() : host;
+        String resolvedHost = interpolator.interpolate(requested);
         String resolvedCert = interpolator.interpolate(certPath);
+        log.info("Connecting to Docker daemon at {}", resolvedHost);
         TargetAdapter adapter = new DockerTargetAdapter(factory.create(resolvedHost, resolvedCert, tlsVerify));
         adapter.verifyConnection();
         sweepOrphanHelpers(adapter);
         String id = UUID.randomUUID().toString();
         byId.put(id, adapter);
         return id;
+    }
+
+    /** OS-appropriate local daemon endpoint: named pipe on Windows, else unix socket. */
+    String localDefaultHost() {
+        return resolveLocalHost(System.getProperty("os.name", ""), props.getDocker().getDefaultHost());
+    }
+
+    /**
+     * Windows Docker Desktop exposes the engine over a named pipe, not a unix
+     * socket; using the unix path there fails to initialise docker-java's
+     * DomainSocket. Package-visible for testing.
+     */
+    static String resolveLocalHost(String osName, String unixDefault) {
+        if (osName != null && osName.toLowerCase().contains("win")) {
+            return "npipe:////./pipe/docker_engine";
+        }
+        return unixDefault;
     }
 
     /** Remove any helper containers left behind by a previously crashed run. */
