@@ -89,6 +89,18 @@ public final class Errors {
         }
     }
 
+    /** Another experiment is already active on the target (maps to HTTP 409). */
+    public static class ConflictError extends ChaosInjectorException {
+        public ConflictError(String message) {
+            super(message);
+        }
+
+        @Override
+        public String code() {
+            return "CONFLICT";
+        }
+    }
+
     /** Metrics collection or health probing failed. */
     public static class MetricsError extends ChaosInjectorException {
         public MetricsError(String message) {

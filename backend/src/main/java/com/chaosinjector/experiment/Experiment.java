@@ -5,6 +5,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+import com.chaosinjector.metrics.ImpactReport;
+
 /**
  * The experiment aggregate: identity, target reference, chosen scenario and
  * parameters, timing, and current lifecycle {@link ExperimentState}. State
@@ -32,6 +34,7 @@ public class Experiment {
     private volatile Instant updatedAt;
     private volatile String errorCode;
     private volatile String errorMessage;
+    private volatile ImpactReport report;
 
     public Experiment(String name, String connectionId, String containerId, String healthCheckUrl,
                       ScenarioType scenario, Map<String, Object> parameters,
@@ -129,5 +132,13 @@ public class Experiment {
 
     public String getErrorMessage() {
         return errorMessage;
+    }
+
+    public ImpactReport getReport() {
+        return report;
+    }
+
+    public void setReport(ImpactReport report) {
+        this.report = report;
     }
 }

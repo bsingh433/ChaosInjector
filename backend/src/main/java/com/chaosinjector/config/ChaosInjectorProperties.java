@@ -60,6 +60,8 @@ public class ChaosInjectorProperties {
         /** Global vs per-target single-active guard. */
         private boolean singleActiveGlobal = false;
         private int defaultBaselineSeconds = 15;
+        /** Seconds of post-revert sampling used to measure recovery. */
+        private int postWindowSeconds = 5;
 
         public int getMaxDurationSeconds() {
             return maxDurationSeconds;
@@ -83,6 +85,14 @@ public class ChaosInjectorProperties {
 
         public void setDefaultBaselineSeconds(int defaultBaselineSeconds) {
             this.defaultBaselineSeconds = defaultBaselineSeconds;
+        }
+
+        public int getPostWindowSeconds() {
+            return postWindowSeconds;
+        }
+
+        public void setPostWindowSeconds(int postWindowSeconds) {
+            this.postWindowSeconds = postWindowSeconds;
         }
     }
 
