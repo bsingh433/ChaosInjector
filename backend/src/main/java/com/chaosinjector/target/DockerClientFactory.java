@@ -2,6 +2,8 @@ package com.chaosinjector.target;
 
 import java.time.Duration;
 
+import org.springframework.stereotype.Component;
+
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.core.DefaultDockerClientConfig;
 import com.github.dockerjava.core.DockerClientConfig;
@@ -14,7 +16,8 @@ import com.github.dockerjava.transport.DockerHttpClient;
  * the local unix socket; a remote {@code tcp://} host with TLS material is also
  * supported (spec §8.2).
  */
-public final class DockerClientFactory {
+@Component
+public class DockerClientFactory {
 
     /** Build a client for the local/default daemon (no explicit TLS). */
     public DockerClient create(String dockerHost) {
