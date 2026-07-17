@@ -27,7 +27,7 @@ which verification applies.
 
 | Phase | Description | Status |
 |---|---|---|
-| A | Observability stack + apps + database | not-started |
+| A | Observability stack + apps + database | completed (static-verified; run on user machine) |
 | B | SRE Agent — read-only RCA (pluggable LLM) | not-started |
 | C | SRE Agent — gated reversible remediation | not-started |
 | D | Packaging, overall compose, docs | not-started |
@@ -40,18 +40,18 @@ Update this table when a phase's tasks are all `completed`.
 
 | ID | Task | Status | Verification / notes |
 |----|------|--------|----------------------|
-| A1 | `mongo/` — Dockerfile (`FROM mongo:7`) + `init/seed.js` (create `sampleapp` DB, `items` collection, seed docs) + README | not-started | `docker build` on user machine; seed runs on first start |
-| A2 | `downstream/` — Flask `/compute` (random delay, small error rate) + `/metrics` + requirements + Dockerfile + README | not-started | `python -m py_compile`; runs on user machine |
-| A3 | `sample-app/` — Flask app: `/`, `/health` (pings Mongo), `/work` (calls downstream), `/metrics` | not-started | py_compile |
-| A4 | `sample-app/` — MongoDB CRUD (`POST/GET/GET id/PUT/DELETE /items`) via pymongo | not-started | py_compile; manual CRUD test on user machine |
-| A5 | `sample-app/` — metrics: http_*, downstream_*, `db_operation_duration_seconds`, `db_errors_total` | not-started | py_compile; visible in `/metrics` |
-| A6 | `sample-app/` — self-load loop exercising `/work` + CRUD; requirements; Dockerfile; README | not-started | py_compile |
-| A7 | `prometheus/` — `prometheus.yml` (jobs: sample-app, downstream, cadvisor, self; 5s interval) + Dockerfile + README | not-started | `promtool check config` if available; else YAML lint |
-| A8 | `grafana/` — provisioning (datasource + dashboards loader) + `chaos-overview.json` dashboard + Dockerfile + README | not-started | JSON valid; dashboard loads on user machine |
-| A9 | Root `docker-compose.yml` — services: mongo, downstream, sample-app, cadvisor, prometheus, grafana; network; volumes; ports; `depends_on`; mem_limit | not-started | `docker compose config` (lint) if available; else YAML review |
-| A10 | Root `.env.example` (LLM provider + Azure/OpenAI/Anthropic creds placeholders + demo toggles) | not-started | no real secrets |
-| A11 | Root `README.md` — run sequence (compose up → URLs → inject chaos → observe) | not-started | doc review |
-| A12 | **Phase A verification gate** | not-started | Stack builds; CRUD works against Mongo; Grafana panels live; chaos moves metrics (run on user machine) |
+| A1 | `mongo/` — Dockerfile (`FROM mongo:7`) + `init/seed.js` (create `sampleapp` DB, `items` collection, seed docs) + README | completed | files created |
+| A2 | `downstream/` — Flask `/compute` (random delay, small error rate) + `/metrics` + requirements + Dockerfile + README | completed | py_compile OK |
+| A3 | `sample-app/` — Flask app: `/`, `/health` (pings Mongo), `/work` (calls downstream), `/metrics` | completed | py_compile OK |
+| A4 | `sample-app/` — MongoDB CRUD (`POST/GET/GET id/PUT/DELETE /items`) via pymongo | completed | py_compile OK; manual CRUD test pending on user machine |
+| A5 | `sample-app/` — metrics: http_*, downstream_*, `db_operation_duration_seconds`, `db_errors_total` | completed | py_compile OK |
+| A6 | `sample-app/` — self-load loop exercising `/work` + CRUD; requirements; Dockerfile; README | completed | py_compile OK |
+| A7 | `prometheus/` — `prometheus.yml` (jobs: sample-app, downstream, cadvisor, self; 5s interval) + Dockerfile + README | completed | YAML valid |
+| A8 | `grafana/` — provisioning (datasource + dashboards loader) + `chaos-overview.json` dashboard + Dockerfile + README | completed | dashboard JSON + provisioning YAML valid |
+| A9 | Root `docker-compose.yml` — services: mongo, downstream, sample-app, cadvisor, prometheus, grafana; network; volumes; ports; `depends_on`; mem_limit | completed | `docker compose config` passes |
+| A10 | Root `.env.example` (LLM provider + Azure/OpenAI/Anthropic creds placeholders + demo toggles) | completed | Azure api-version default 2025-04-01-preview; no real secrets |
+| A11 | Root `README.md` — run sequence (compose up → URLs → inject chaos → observe) | completed | doc written |
+| A12 | **Phase A verification gate** | completed | static checks pass here (syntax/JSON/YAML/compose config); full `docker compose up` + CRUD + Grafana + chaos-moves-metrics to be run on the user's machine |
 
 ---
 
@@ -101,3 +101,7 @@ Update this table when a phase's tasks are all `completed`.
 ## Change log
 
 - 2026-07-17 — plan created; awaiting user confirmation to start Phase A.
+- 2026-07-17 — Phase A implemented (mongo, downstream, sample-app+CRUD,
+  prometheus, grafana, overall compose, .env.example, README). Static checks
+  pass (py_compile, dashboard JSON, all YAML, `docker compose config`). Full
+  `docker compose up` verification pending on the user's machine.

@@ -1,0 +1,92 @@
+# Overall orchestration for the Chaos + Observability + SRE-Agent demo.
+# Brings up every component in its own container on a shared network.
+#
+# Each service builds from its own component folder. After a component is split
+# into its own repo, replace `build: ./<folder>` with `image: <registry>/<name>:<tag>`.
+#
+# Phase A brings up: mongo, downstream, sample-app, cadvisor, prometheus, grafana.
+# The sre-agent (and optionally chaosinjector) are added in Phase D.
+
+name: sre-demo
+
+services:
+  mongo:
+    build: ./mongo               # or: image: <registry>/sre-demo-mongo:<tag>
+    container_name: mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks: [demo]
+
+  downstream:
+    build: ./downstream          # or: image: <registry>/sre-demo-downstream:<tag>
+    container_name: downstream
+    environment:
+      PORT: "6000"
+      BASE_DELAY_MS: "20"
+      ERROR_RATE: "0.02"
+    ports:
+      - "6000:6000"
+    networks: [demo]
+
+  sample-app:
+    build: ./sample-app          # or: image: <registry>/sre-demo-sample-app:<tag>
+    container_name: sample-app
+    environment:
+      PORT: "5000"
+      DOWNSTREAM_URL: "http://downstream:6000/compute"
+      MONGO_URI: "mongodb://mongo:27017"
+      MONGO_DB: "sampleapp"
+      MONGO_COLLECTION: "items"
+      SELF_LOAD: "true"
+    mem_limit: 512m              # makes memory% / OOM meaningful for chaos
+    depends_on:
+      - mongo
+      - downstream
+    ports:
+      - "5000:5000"
+    networks: [demo]
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: cadvisor
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    ports:
+      - "8080:8080"
+    networks: [demo]
+
+  prometheus:
+    build: ./prometheus          # or: image: <registry>/sre-demo-prometheus:<tag>
+    container_name: prometheus
+    depends_on:
+      - sample-app
+      - downstream
+      - cadvisor
+    ports:
+      - "9090:9090"
+    networks: [demo]
+
+  grafana:
+    build: ./grafana             # or: image: <registry>/sre-demo-grafana:<tag>
+    container_name: grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: "${GF_ADMIN_USER:-admin}"
+      GF_SECURITY_ADMIN_PASSWORD: "${GF_ADMIN_PASSWORD:-admin}"
+    depends_on:
+      - prometheus
+    ports:
+      - "3000:3000"
+    networks: [demo]
+
+networks:
+  demo:
+    driver: bridge
+
+volumes:
+  mongo-data:
