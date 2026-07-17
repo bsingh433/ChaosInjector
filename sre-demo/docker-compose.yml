@@ -55,11 +55,20 @@ services:
     image: gcr.io/cadvisor/cadvisor:v0.49.1
     container_name: cadvisor
     privileged: true
+    # /dev/kmsg is required for cAdvisor to collect metrics on Docker Desktop
+    # (Mac/Windows LinuxKit VM); without it the container CPU/memory series are
+    # empty ("No data" on those panels).
+    devices:
+      - /dev/kmsg
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    command:
+      - --docker_only=true
+      - --housekeeping_interval=5s
     ports:
       - "8080:8080"
     networks: [demo]
