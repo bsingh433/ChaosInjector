@@ -7,6 +7,13 @@ change. The authoritative, detailed requirements live in
 and the spec disagree, the spec wins for *scenario behaviour, API shape, and
 output/report format*; this file wins for *build process and conventions*.
 
+> **Scope note:** This file governs the **ChaosInjector application** only. The
+> `sre-demo/` directory is a **separate sub-project** (a Chaos + Observability +
+> SRE-Agent demo) with its **own** operating guide and spec — see
+> `sre-demo/CLAUDE.md`, `sre-demo/sre_demo_spec.md`, and
+> `sre-demo/IMPLEMENTATION_PLAN.md`. Do not apply this ChaosInjector guide to
+> work under `sre-demo/`.
+
 ## What you are building
 **ChaosInjector** — a chaos-engineering tool that injects a fault into a
 running application and reports the observed impact. A **React** UI drives a
