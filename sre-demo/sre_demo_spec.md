@@ -78,8 +78,9 @@ standalone repo.
 
 | Component | Folder | Tech | Ships a Dockerfile? | Future repo |
 |---|---|---|---|---|
-| Sample app | `sample-app/` | Python + Flask + prometheus_client | ✅ own image | `sample-app` |
+| Sample app | `sample-app/` | Python + Flask + prometheus_client + pymongo | ✅ own image | `sample-app` |
 | Downstream dependency | `downstream/` | Python + Flask | ✅ own image | `downstream-service` |
+| MongoDB | `mongo/` | MongoDB (official image + init) | ✅ extends `mongo` | `sample-app-db` |
 | Prometheus | `prometheus/` | Prometheus + config | ✅ extends `prom/prometheus` | `observability-prometheus` |
 | Grafana | `grafana/` | Grafana + provisioning + dashboards | ✅ extends `grafana/grafana` | `observability-grafana` |
 | cAdvisor | *(none — compose only)* | `gcr.io/cadvisor/cadvisor` | ❌ used as-is | *n/a* |
@@ -114,6 +115,11 @@ sre-demo/                          # umbrella (this spec + the overall compose)
 │   ├── Dockerfile
 │   └── README.md
 │
+├── mongo/                         # → future repo
+│   ├── Dockerfile                 # FROM mongo + COPY init script
+│   ├── init/seed.js               # creates DB/collection + seed docs (optional)
+│   └── README.md
+│
 ├── prometheus/                    # → future repo
 │   ├── prometheus.yml
 │   ├── Dockerfile                 # FROM prom/prometheus + COPY prometheus.yml
@@ -145,25 +151,37 @@ Both forms are documented in the compose file.
 
 ### 6.1 `sample-app/` — instrumented backend (the chaos target)
 
-Python + Flask, exposes Prometheus metrics. This is the container ChaosInjector
-targets.
+Python + Flask, exposes Prometheus metrics, and talks to **MongoDB** (via
+`pymongo`) for CRUD. This is the container ChaosInjector targets.
 
 **Endpoints**
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/` | liveness JSON |
-| GET | `/health` | health check (ChaosInjector probe URL) |
+| GET | `/health` | health check (ChaosInjector probe URL); also pings MongoDB |
 | GET | `/work` | does a unit of work; **calls the downstream service** |
+| POST | `/items` | **create** a document (`{name, value}`) |
+| GET | `/items` | **read** all documents (list) |
+| GET | `/items/<id>` | **read** one document |
+| PUT | `/items/<id>` | **update** a document |
+| DELETE | `/items/<id>` | **delete** a document |
 | GET | `/metrics` | Prometheus exposition |
 
-**Behaviour:** a background load generator hits `/work` continuously
-(`SELF_LOAD=true`) so metrics always have signal without external traffic. `/work`
-calls `downstream` and records the call's latency/errors — this is what makes
-**network chaos** visible.
+**MongoDB CRUD:** the five `/items` routes are full Create/Read/Update/Delete
+against a Mongo collection (`items`), using `pymongo`. Each DB operation is timed
+and counted (see DB metrics below), so **database slowness or failures are
+observable** — and diagnosable by the SRE Agent — just like the downstream calls.
 
-**Config (env):** `PORT` (5000), `DOWNSTREAM_URL`, `SELF_LOAD`.
+**Behaviour:** a background load generator (`SELF_LOAD=true`) continuously
+exercises both `/work` (→ downstream) **and** the CRUD path (create → read →
+update → delete) so app, downstream, and DB metrics all have signal without
+external traffic.
+
+**Config (env):** `PORT` (5000), `DOWNSTREAM_URL`, `SELF_LOAD`,
+`MONGO_URI` (e.g. `mongodb://mongo:27017`), `MONGO_DB` (`sampleapp`),
+`MONGO_COLLECTION` (`items`).
 **Container:** `container_name: sample-app`, `mem_limit: 512m` (so memory% and
-OOM are meaningful and ChaosInjector's `percentOfLimit` works).
+OOM are meaningful and ChaosInjector's `percentOfLimit` works). `depends_on: mongo`.
 **Dockerfile:** `python:3.11-slim` → install requirements → run app.
 
 ### 6.2 `downstream/` — simulated dependency
@@ -339,19 +357,38 @@ It is included in the overall compose as an **optional** service (build from its
 repo/image, mount the Docker socket) so the whole loop can come up together; it
 can equally be run on its own as today.
 
----
+### 6.8 `mongo/` — document store (sample-app's database)
 
-## 7. Chaos → signal mapping (the heart of the demo)
+MongoDB, the database backing the sample app's CRUD endpoints. Ships its own
+image extending the official `mongo` image, optionally with an init script that
+creates the database/collection and seeds a few documents.
+
+- **Image:** `FROM mongo:7` + `COPY init/seed.js /docker-entrypoint-initdb.d/`
+  (Mongo runs any `*.js`/`*.sh` in that directory on first startup to create the
+  `sampleapp` DB, the `items` collection, and seed data).
+- **Port:** 27017 (exposed on the compose network; optionally to the host for
+  inspection with `mongosh`/Compass).
+- **Persistence:** a named volume for `/data/db` so data survives restarts.
+- **Auth:** demo runs without auth by default; `MONGO_INITDB_ROOT_USERNAME` /
+  `MONGO_INITDB_ROOT_PASSWORD` supported via env for a secured variant.
+- **Container:** `container_name: mongo`.
+
+Because the sample app calls Mongo on every CRUD op, MongoDB is a **second
+observable dependency** (alongside `downstream`): network/CPU chaos on the app,
+or pausing Mongo itself, shows up as rising DB-operation latency or DB errors.
 
 | ChaosInjector scenario | What the SRE Agent observes | Primary metric |
 |---|---|---|
 | **CPU Overhead** | sample-app CPU near 100%, request latency rises | `container_cpu_usage_seconds_total` |
 | **Memory Overhead** | memory climbs toward limit; possible OOM restart | `container_memory_usage_bytes`, restart count |
-| **Network Failure** | downstream call latency/errors spike | `downstream_request_duration_seconds`, `downstream_errors_total` |
+| **Network Failure** | downstream **and DB** call latency/errors spike | `downstream_request_duration_seconds`, `db_operation_duration_seconds`, `*_errors_total` |
 | **Service Unavailable** | scrape target down; availability 0 | `up{job="sample-app"} == 0` |
+| **Mongo paused/stopped** (bonus) | DB ops time out; DB errors spike; `/health` degrades | `db_operation_duration_seconds`, `db_errors_total` |
 
 The agent correlates these with **`recent_changes()`** (restart counts, container
-state) to reach a cause without being told which scenario ran.
+state) to reach a cause without being told which scenario ran. With Mongo as a
+dependency, the agent can also distinguish "app is slow" from "the database is
+slow/unreachable" — a realistic RCA branch.
 
 ---
 
@@ -360,7 +397,10 @@ state) to reach a cause without being told which scenario ran.
 **sample-app exposes:** `http_requests_total{method,endpoint,status}`,
 `http_request_duration_seconds{endpoint}` (histogram),
 `downstream_request_duration_seconds` (histogram),
-`downstream_errors_total{reason}`.
+`downstream_errors_total{reason}`,
+`db_operation_duration_seconds{operation}` (histogram; operation ∈
+create/read/read_one/update/delete/ping),
+`db_errors_total{operation,reason}`.
 **downstream exposes:** request count + latency histogram, error counter.
 **cAdvisor exposes:** `container_cpu_usage_seconds_total`,
 `container_memory_usage_bytes`, `container_spec_memory_limit_bytes`,
@@ -376,7 +416,8 @@ container** on a shared user-defined network:
 
 | Service | Image / build | Ports | Notes |
 |---|---|---|---|
-| `sample-app` | `build: ./sample-app` | 5000 | `container_name: sample-app`, `mem_limit: 512m` |
+| `mongo` | `build: ./mongo` | 27017 | `container_name: mongo`; named volume for `/data/db` |
+| `sample-app` | `build: ./sample-app` | 5000 | `container_name: sample-app`, `mem_limit: 512m`, `depends_on: [mongo, downstream]` |
 | `downstream` | `build: ./downstream` | 6000 | |
 | `prometheus` | `build: ./prometheus` | 9090 | |
 | `grafana` | `build: ./grafana` | 3000 | depends_on prometheus |
@@ -395,8 +436,8 @@ container** on a shared user-defined network:
 - **Port conflict note:** cAdvisor and ChaosInjector both default to 8080 — the
   compose remaps host ports (e.g. ChaosInjector → 8081) to avoid clashes.
 
-Bring-up order via `depends_on`: downstream → sample-app → cadvisor → prometheus
-→ grafana → sre-agent.
+Bring-up order via `depends_on`: mongo + downstream → sample-app → cadvisor →
+prometheus → grafana → sre-agent.
 
 ---
 
@@ -429,10 +470,11 @@ Mirrors ChaosInjector's invariants:
 
 ## 12. Build plan — phase by phase (verify each before the next)
 
-**Phase A — Observability stack + apps.** `sample-app/`, `downstream/`,
-`prometheus/`, `grafana/`, and the overall compose (minus the agent). *Verify:*
-`docker compose up` brings up all; Grafana shows live panels; injecting chaos via
-ChaosInjector visibly moves the metrics.
+**Phase A — Observability stack + apps + database.** `mongo/`, `sample-app/`
+(incl. MongoDB CRUD + DB metrics), `downstream/`, `prometheus/`, `grafana/`, and
+the overall compose (minus the agent). *Verify:* `docker compose up` brings up
+all; the CRUD endpoints work against Mongo; Grafana shows live app/DB panels;
+injecting chaos via ChaosInjector visibly moves the metrics (incl. DB latency).
 
 **Phase B — SRE Agent read-only RCA.** `sre-agent/` Java project: the
 provider-neutral `LlmClient` layer with the Azure Responses API adapter first
