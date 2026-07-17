@@ -16,6 +16,8 @@ import com.sreagent.llm.Messages.LlmMessage;
 import com.sreagent.llm.Messages.LlmRequest;
 import com.sreagent.llm.Messages.LlmResponse;
 import com.sreagent.llm.Messages.ToolCall;
+import com.sreagent.remediation.AuditLog;
+import com.sreagent.remediation.ConfirmationGate;
 import com.sreagent.tools.Tool;
 import com.sreagent.tools.ToolRegistry;
 
@@ -34,12 +36,17 @@ public class RcaAgent {
     private final AgentProperties props;
     private final ObjectMapper mapper;
     private final ObjectMapper lenient;
+    private final ConfirmationGate gate;
+    private final AuditLog audit;
 
-    public RcaAgent(LlmClient llm, ToolRegistry tools, AgentProperties props, ObjectMapper mapper) {
+    public RcaAgent(LlmClient llm, ToolRegistry tools, AgentProperties props, ObjectMapper mapper,
+                    ConfirmationGate gate, AuditLog audit) {
         this.llm = llm;
         this.tools = tools;
         this.props = props;
         this.mapper = mapper;
+        this.gate = gate;
+        this.audit = audit;
         this.lenient = mapper.copy().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
@@ -77,7 +84,21 @@ public class RcaAgent {
             JsonNode args = call.argumentsJson() == null || call.argumentsJson().isBlank()
                     ? mapper.createObjectNode() : mapper.readTree(call.argumentsJson());
             log.info("tool {} args={}", call.name(), args);
-            return tool.execute(args);
+
+            if (tool.requiresConfirmation()) {
+                // Gated reversible remediation: model proposes, human approves, code executes.
+                if (!gate.confirm(call.name(), args.toString())) {
+                    String msg = "PROPOSED (not executed): would run " + call.name() + " with " + args
+                            + ". This reversible action needs human approval"
+                            + " (remediation mode=" + gate.mode() + ").";
+                    audit.add(call.name(), args.toString(), "PROPOSED", msg);
+                    return msg;
+                }
+                String result = tool.execute(args);
+                audit.add(call.name(), args.toString(), "APPROVED", result);
+                return result;
+            }
+            return tool.execute(args); // read-only
         } catch (Exception e) {
             return "error: " + e.getMessage();
         }
@@ -121,6 +142,13 @@ public class RcaAgent {
                db_errors_total)? Distinguish "the app is slow" from "a dependency is slow".
             4. Validate each hypothesis against real tool output before asserting it.
 
+            You also have REVERSIBLE remediation tools: restart_container, unpause_container,
+            start_container, abort_chaos. If a fix is warranted, CALL the appropriate remediation
+            tool — it is gated for human approval, so it may return "PROPOSED (not executed)". Either
+            way, record the fix in recommendedFixes[].proposedAction as
+            {"tool": "<tool>", "target": "%s", "reversible": true}. abort_chaos is usually the
+            cleanest fix (it ends the injected fault). Never take destructive actions.
+
             Rules:
             - Ground every hypothesis in evidence you actually retrieved. Do not guess.
             - If signal is insufficient, say so rather than inventing a cause.
@@ -143,6 +171,6 @@ public class RcaAgent {
               "verdict": "one-sentence plain-language conclusion"
             }
             Order hypotheses most-likely first.
-            """.formatted(target, target, windowMinutes);
+            """.formatted(target, target, target, windowMinutes);
     }
 }

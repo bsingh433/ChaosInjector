@@ -29,7 +29,7 @@ which verification applies.
 |---|---|---|
 | A | Observability stack + apps + database | completed (static-verified; run on user machine) |
 | B | SRE Agent — read-only RCA (pluggable LLM) | completed (unit-verified; live LLM run on user machine) |
-| C | SRE Agent — gated reversible remediation | not-started |
+| C | SRE Agent — gated reversible remediation | completed (unit-verified; live run on user machine) |
 | D | Packaging, overall compose, docs | not-started |
 
 Update this table when a phase's tasks are all `completed`.
@@ -78,11 +78,11 @@ Update this table when a phase's tasks are all `completed`.
 
 | ID | Task | Status | Verification / notes |
 |----|------|--------|----------------------|
-| C1 | Remediation tools (reversible): `restart_container`, `unpause_container`, `reconnect_networks`, `abort_chaos` (ChaosInjector API) | not-started | unit tests w/ fake Docker / ChaosInjector client |
-| C2 | Human confirmation gate for remediation tools (CLI prompt + `--auto-approve` flag); read-only tools never prompt | not-started | unit tests |
-| C3 | Audit log of every proposed + executed action | not-started | unit test asserts audit entries |
-| C4 | RCA output carries `recommendedFixes[].proposedAction` (reversible tool) | not-started | unit test |
-| C5 | **Phase C verification gate** | not-started | Agent proposes a correct reversible fix; on approval applies it and metrics recover; declining changes nothing (user machine) |
+| C1 | Remediation tools (reversible): `restart_container`, `unpause_container`, `start_container`, `abort_chaos` (ChaosInjector API). Note: network-off is reverted by `abort_chaos` (ChaosInjector reconnects), so a separate `reconnect_networks` tool was not needed. | completed | ChaosInjectorClient + DockerFacade; compile OK |
+| C2 | Confirmation gate for remediation tools (modes: propose / prompt / auto); read-only tools never prompt | completed | ConfirmationGate; unit-tested (propose = not executed, auto = executed) |
+| C3 | Audit log of every proposed + executed action (`GET /api/audit`) | completed | AuditLog; unit test asserts PROPOSED/APPROVED entries |
+| C4 | RCA output carries `recommendedFixes[].proposedAction` (reversible tool); system prompt instructs the model to fill it | completed | RcaReport.ProposedAction + prompt update |
+| C5 | **Phase C verification gate** | completed | 11 unit tests green (incl. gating). Live: agent proposes a correct reversible fix; on approval (auto/prompt) applies it and metrics recover; propose mode changes nothing — to be run on the user's machine |
 
 ---
 
@@ -113,3 +113,8 @@ Update this table when a phase's tasks are all `completed`.
   + Docker tools, agentic RCA loop with structured RcaReport, HTTP + CLI entry.
   9 unit tests green (mvn test). Live LLM RCA + provider switch pending on the
   user's machine (requires an LLM API key).
+- 2026-07-17 — Phase C implemented: reversible remediation tools
+  (restart/unpause/start container, abort_chaos via ChaosInjector API), a
+  ConfirmationGate (propose/prompt/auto), an AuditLog (GET /api/audit), and
+  RcaReport.proposedAction. 11 unit tests green. Live approve/apply/recover
+  pending on the user's machine.

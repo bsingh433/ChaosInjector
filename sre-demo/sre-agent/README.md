@@ -9,11 +9,19 @@ told what chaos was injected — it discovers the cause from the metrics.
   Responses API** (`api-version 2025-04-01-preview`, model in the request body);
   also `openai-responses` and `anthropic-messages`. Switch with `LLM_PROVIDER`.
 
-## Read-only tools
-`prometheus_instant`, `prometheus_range`, `list_targets`, `container_stats`,
-`recent_changes`, `container_logs`.
-Gated reversible remediation tools (restart / unpause / abort-chaos) arrive in
-Phase C.
+## Tools
+**Read-only:** `prometheus_instant`, `prometheus_range`, `list_targets`,
+`container_stats`, `recent_changes`, `container_logs`.
+
+**Gated reversible remediation:** `restart_container`, `unpause_container`,
+`start_container`, `abort_chaos` (ends the active ChaosInjector experiment).
+These require human approval per `REMEDIATION_MODE`:
+- `propose` (default) — the agent proposes but never executes; the action is
+  recorded and returned in `recommendedFixes[].proposedAction`.
+- `prompt` — asks for `y/N` on the console (CLI mode).
+- `auto` — executes without asking (demo only).
+
+Every proposed/executed action is written to an audit log — `GET /api/audit`.
 
 ## Configure (env)
 ```

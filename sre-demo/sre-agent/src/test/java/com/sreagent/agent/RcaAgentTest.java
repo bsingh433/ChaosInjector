@@ -15,12 +15,24 @@ import com.sreagent.llm.LlmClient;
 import com.sreagent.llm.Messages.LlmRequest;
 import com.sreagent.llm.Messages.LlmResponse;
 import com.sreagent.llm.Messages.ToolCall;
+import com.sreagent.remediation.AuditLog;
+import com.sreagent.remediation.ConfirmationGate;
 import com.sreagent.tools.Tool;
 import com.sreagent.tools.ToolRegistry;
 
 class RcaAgentTest {
 
     private final ObjectMapper mapper = new ObjectMapper();
+
+    private ConfirmationGate gate(String mode) {
+        AgentProperties p = new AgentProperties();
+        p.getRemediation().setMode(mode);
+        return new ConfirmationGate(p);
+    }
+
+    private ConfirmationGate proposeGate() {
+        return gate("propose");
+    }
 
     /** LLM stub returning scripted responses in order. */
     static class StubLlm implements LlmClient {
@@ -79,7 +91,8 @@ class RcaAgentTest {
 
         FakeTool tool = new FakeTool();
         AgentProperties props = new AgentProperties();
-        RcaAgent agent = new RcaAgent(llm, new ToolRegistry(List.of(tool)), props, mapper);
+        RcaAgent agent = new RcaAgent(llm, new ToolRegistry(List.of(tool)), props, mapper,
+                proposeGate(), new AuditLog());
 
         RcaReport report = agent.analyze(10, "sample-app");
 
@@ -90,10 +103,73 @@ class RcaAgentTest {
         assertThat(report.verdict()).contains("CPU overhead");
     }
 
+    /** A reversible remediation tool (requires confirmation). */
+    static class FakeRemediation implements Tool {
+        boolean executed;
+
+        @Override
+        public String name() {
+            return "abort_chaos";
+        }
+
+        @Override
+        public String description() {
+            return "fake remediation";
+        }
+
+        @Override
+        public Object parametersSchema() {
+            return java.util.Map.of("type", "object");
+        }
+
+        @Override
+        public boolean requiresConfirmation() {
+            return true;
+        }
+
+        @Override
+        public String execute(JsonNode args) {
+            executed = true;
+            return "aborted";
+        }
+    }
+
+    private RcaReport runWithRemediation(String mode, FakeRemediation tool, AuditLog audit) {
+        StubLlm llm = new StubLlm();
+        llm.scripted.add(new LlmResponse(null, List.of(new ToolCall("c1", "abort_chaos", "{}"))));
+        llm.scripted.add(new LlmResponse("{\"verdict\":\"done\"}", List.of()));
+        RcaAgent agent = new RcaAgent(llm, new ToolRegistry(List.of(tool)),
+                new AgentProperties(), mapper, gate(mode), audit);
+        return agent.analyze(10, "sample-app");
+    }
+
+    @Test
+    void remediationInProposeModeIsNotExecutedButAudited() {
+        FakeRemediation tool = new FakeRemediation();
+        AuditLog audit = new AuditLog();
+        runWithRemediation("propose", tool, audit);
+
+        assertThat(tool.executed).isFalse();
+        assertThat(audit.all()).hasSize(1);
+        assertThat(audit.all().get(0).decision()).isEqualTo("PROPOSED");
+    }
+
+    @Test
+    void remediationInAutoModeExecutesAndAudits() {
+        FakeRemediation tool = new FakeRemediation();
+        AuditLog audit = new AuditLog();
+        runWithRemediation("auto", tool, audit);
+
+        assertThat(tool.executed).isTrue();
+        assertThat(audit.all()).hasSize(1);
+        assertThat(audit.all().get(0).decision()).isEqualTo("APPROVED");
+    }
+
     @Test
     void parsesJsonWrappedInFences() {
         AgentProperties props = new AgentProperties();
-        RcaAgent agent = new RcaAgent(new StubLlm(), new ToolRegistry(List.of()), props, mapper);
+        RcaAgent agent = new RcaAgent(new StubLlm(), new ToolRegistry(List.of()), props, mapper,
+                proposeGate(), new AuditLog());
         RcaReport r = agent.parseReport("```json\n{\"verdict\":\"ok\"}\n```");
         assertThat(r.verdict()).isEqualTo("ok");
     }
@@ -101,7 +177,8 @@ class RcaAgentTest {
     @Test
     void fallsBackToRawTextWhenNotJson() {
         AgentProperties props = new AgentProperties();
-        RcaAgent agent = new RcaAgent(new StubLlm(), new ToolRegistry(List.of()), props, mapper);
+        RcaAgent agent = new RcaAgent(new StubLlm(), new ToolRegistry(List.of()), props, mapper,
+                proposeGate(), new AuditLog());
         RcaReport r = agent.parseReport("no json here");
         assertThat(r.verdict()).isEqualTo("no json here");
     }

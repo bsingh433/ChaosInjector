@@ -13,6 +13,7 @@ public class AgentProperties {
     private final Azure azure = new Azure();
     private final OpenAi openai = new OpenAi();
     private final Anthropic anthropic = new Anthropic();
+    private final Remediation remediation = new Remediation();
 
     private String prometheusUrl = "http://localhost:9090";
     private String dockerHost = "unix:///var/run/docker.sock";
@@ -35,6 +36,10 @@ public class AgentProperties {
 
     public Anthropic getAnthropic() {
         return anthropic;
+    }
+
+    public Remediation getRemediation() {
+        return remediation;
     }
 
     public String getPrometheusUrl() {
@@ -114,6 +119,23 @@ public class AgentProperties {
 
         public void setMaxOutputTokens(int maxOutputTokens) {
             this.maxOutputTokens = maxOutputTokens;
+        }
+    }
+
+    /**
+     * How remediation (reversible) tools are gated:
+     * {@code propose} (default — never executes, records the proposed action),
+     * {@code prompt} (asks on the console), {@code auto} (executes without asking).
+     */
+    public static class Remediation {
+        private String mode = "propose";
+
+        public String getMode() {
+            return mode;
+        }
+
+        public void setMode(String mode) {
+            this.mode = mode;
         }
     }
 
