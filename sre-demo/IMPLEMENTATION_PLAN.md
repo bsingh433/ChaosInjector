@@ -30,7 +30,7 @@ which verification applies.
 | A | Observability stack + apps + database | completed (static-verified; run on user machine) |
 | B | SRE Agent — read-only RCA (pluggable LLM) | completed (unit-verified; live LLM run on user machine) |
 | C | SRE Agent — gated reversible remediation | completed (unit-verified; live run on user machine) |
-| D | Packaging, overall compose, docs | not-started |
+| D | Packaging, overall compose, docs | completed (static-verified; full run on user machine) |
 
 Update this table when a phase's tasks are all `completed`.
 
@@ -90,11 +90,11 @@ Update this table when a phase's tasks are all `completed`.
 
 | ID | Task | Status | Verification / notes |
 |----|------|--------|----------------------|
-| D1 | Add `sre-agent` (+ optional `chaosinjector`) to the overall `docker-compose.yml`; socket mount; port remaps (avoid 8080 clash); `.env` wiring | not-started | `docker compose config` |
-| D2 | Each component README finalized; document `build:`→`image:` switch for repo-split | not-started | doc review |
-| D3 | Root README: full end-to-end run + each chaos scenario walkthrough + expected RCA | not-started | doc review |
-| D4 | Verify all folders build independently (`docker build .` each) + no secrets in repo | not-started | user machine |
-| D5 | **Definition of done** — spec §13 acceptance criteria all hold | not-started | user machine end-to-end |
+| D1 | Add `sre-agent` (+ optional `chaosinjector`) to the overall `docker-compose.yml`; socket mount; host-gateway; optional `.env`; ChaosInjector optional block w/ 8081 remap | completed | `docker compose config` passes |
+| D2 | Each component README finalized; `build:`→`image:` switch documented inline in compose | completed | READMEs present for all components |
+| D3 | Root README: full end-to-end run + chaos walkthrough + agent RCA + remediation | completed | README updated |
+| D4 | Verify all folders build independently + no secrets in repo | completed | no secrets committed (.env gitignored); per-folder `docker build .` to be run on user machine |
+| D5 | **Definition of done** — spec §13 acceptance criteria | completed (static) | code/config verified here; full end-to-end (compose up + inject + RCA + approve→recover, provider switch) to be run on the user's machine with an LLM key |
 
 ---
 
@@ -118,3 +118,8 @@ Update this table when a phase's tasks are all `completed`.
   ConfirmationGate (propose/prompt/auto), an AuditLog (GET /api/audit), and
   RcaReport.proposedAction. 11 unit tests green. Live approve/apply/recover
   pending on the user's machine.
+- 2026-07-17 — Phase D implemented: sre-agent added to the overall compose
+  (socket mount, host-gateway, optional .env, optional chaosinjector block),
+  root README end-to-end walkthrough (RCA + remediation). `docker compose
+  config` passes. All four phases done and static-verified; remaining
+  verification is the live end-to-end run on the user's machine with an LLM key.

@@ -96,6 +96,43 @@ services:
       - "3000:3000"
     networks: [demo]
 
+  sre-agent:
+    build: ./sre-agent           # or: image: <registry>/sre-demo-sre-agent:<tag>
+    container_name: sre-agent
+    env_file:                    # LLM provider + credentials (copy from .env.example)
+      - path: .env
+        required: false
+    environment:
+      PROMETHEUS_URL: "http://prometheus:9090"
+      DOCKER_HOST: "unix:///var/run/docker.sock"
+      DEFAULT_TARGET: "sample-app"
+      # ChaosInjector runs on the host (default) at 8081; reach it from the container:
+      CHAOSINJECTOR_URL: "http://host.docker.internal:8081"
+      REMEDIATION_MODE: "${REMEDIATION_MODE:-propose}"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock   # read-only Docker tools + remediation
+    extra_hosts:
+      - "host.docker.internal:host-gateway"          # reach the host on Linux
+    depends_on:
+      - prometheus
+    ports:
+      - "8085:8085"
+    networks: [demo]
+
+  # Optional: run ChaosInjector inside this compose too. By default it runs
+  # standalone (that's how you inject faults today), so this is commented out to
+  # avoid a double instance. While sre-demo lives inside the ChaosInjector repo,
+  # build from ../backend; after splitting repos, use image: chaosinjector:latest.
+  # Note the port remap (host 8081) to avoid clashing with cadvisor on 8080.
+  # chaosinjector:
+  #   build: ../backend
+  #   container_name: chaosinjector
+  #   ports:
+  #     - "8081:8080"
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #   networks: [demo]
+
 networks:
   demo:
     driver: bridge

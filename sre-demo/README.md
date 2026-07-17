@@ -19,8 +19,7 @@ fix**. See [`sre_demo_spec.md`](./sre_demo_spec.md) for the full design and
 | cadvisor | http://localhost:8080 | per-container CPU/memory metrics |
 | prometheus | http://localhost:9090 | scrapes everything (5s) |
 | grafana | http://localhost:3000 | **Chaos Overview** dashboard (admin/admin) |
-
-The **SRE Agent** (`sre-agent/`) arrives in Phase B/C.
+| sre-agent | http://localhost:8085 | LLM-powered RCA + gated remediation |
 
 ## Run it
 
@@ -60,6 +59,48 @@ Chaos Overview dashboard react:
 
 (For network/CPU/memory scenarios, build the ChaosInjector helper image first:
 `docker build -t chaosinjector/helper:latest <chaosinjector-repo>/helper/`.)
+
+## Run the SRE Agent (RCA)
+
+The agent reads Prometheus + Docker and does root-cause analysis with an LLM. It
+is **not told** what was injected — it discovers the cause. Configure your LLM in
+`.env` (default provider Azure OpenAI Responses API; also OpenAI / Anthropic):
+
+```bash
+# .env (only the selected provider's creds are needed)
+LLM_PROVIDER=azure-responses
+LLM_MODEL=gpt-5
+AZURE_OPENAI_ENDPOINT=https://<resource>.openai.azure.com
+AZURE_OPENAI_API_VERSION=2025-04-01-preview
+AZURE_OPENAI_API_KEY=...
+```
+
+Inject a fault from ChaosInjector, wait ~30s for metrics to move, then ask the
+agent (it comes up with the stack, on port 8085):
+
+```bash
+curl -s -X POST "http://localhost:8085/api/analyze?windowMinutes=10&target=sample-app" | jq
+```
+
+You get a structured RCA — timeline, ranked hypotheses with cited metric
+evidence, a plain-language verdict, and a **proposed reversible fix**. Compare its
+top hypothesis to the scenario you actually injected — that's the agent grading
+itself against ground truth.
+
+### Remediation (gated, reversible)
+`REMEDIATION_MODE` controls whether the agent may act:
+- `propose` (default) — proposes a fix (`restart_container` / `unpause_container` /
+  `abort_chaos` …) but never executes; see it in `recommendedFixes[].proposedAction`.
+- `auto` — executes the reversible fix (e.g. `abort_chaos` ends the experiment and
+  ChaosInjector reverts); the metrics then recover.
+- `prompt` — asks for approval on the console (CLI mode).
+
+Every proposed/executed action is audited: `curl http://localhost:8085/api/audit`.
+
+One-shot CLI instead of HTTP:
+```bash
+cd sre-agent && java -jar target/sre-agent.jar --analyze --window=10 --target=sample-app
+```
 
 ## Tear down
 ```bash
