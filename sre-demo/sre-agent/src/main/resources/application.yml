@@ -1,0 +1,34 @@
+server:
+  port: 8085
+
+spring:
+  main:
+    banner-mode: "off"
+
+# Secrets come from env (${ENV_VAR}); never hardcode. Only the selected LLM
+# provider's credentials need to be present.
+agent:
+  llm:
+    provider: ${LLM_PROVIDER:azure-responses}   # azure-responses | openai-responses | anthropic-messages
+    model: ${LLM_MODEL:gpt-5}
+    temperature: ${LLM_TEMPERATURE:0.2}
+    max-output-tokens: ${LLM_MAX_OUTPUT_TOKENS:4000}
+  prometheus-url: ${PROMETHEUS_URL:http://localhost:9090}
+  docker-host: ${DOCKER_HOST:unix:///var/run/docker.sock}
+  default-target: ${DEFAULT_TARGET:sample-app}
+  max-iterations: ${AGENT_MAX_ITERATIONS:12}
+  chaosinjector-url: ${CHAOSINJECTOR_URL:http://localhost:8081}
+  azure:
+    endpoint: ${AZURE_OPENAI_ENDPOINT:}
+    api-version: ${AZURE_OPENAI_API_VERSION:2025-04-01-preview}
+    api-key: ${AZURE_OPENAI_API_KEY:}
+  openai:
+    api-key: ${OPENAI_API_KEY:}
+    base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+  anthropic:
+    api-key: ${ANTHROPIC_API_KEY:}
+    version: ${ANTHROPIC_VERSION:2023-06-01}
+
+logging:
+  level:
+    com.sreagent: INFO

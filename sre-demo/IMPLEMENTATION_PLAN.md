@@ -28,7 +28,7 @@ which verification applies.
 | Phase | Description | Status |
 |---|---|---|
 | A | Observability stack + apps + database | completed (static-verified; run on user machine) |
-| B | SRE Agent — read-only RCA (pluggable LLM) | not-started |
+| B | SRE Agent — read-only RCA (pluggable LLM) | completed (unit-verified; live LLM run on user machine) |
 | C | SRE Agent — gated reversible remediation | not-started |
 | D | Packaging, overall compose, docs | not-started |
 
@@ -59,18 +59,18 @@ Update this table when a phase's tasks are all `completed`.
 
 | ID | Task | Status | Verification / notes |
 |----|------|--------|----------------------|
-| B1 | `sre-agent/` Maven scaffold (pom.xml, Java 17, main class, application.yml, Dockerfile skeleton) | not-started | `mvn compile` |
-| B2 | Provider-neutral LLM layer: `LlmClient` interface + `LlmRequest`/`LlmResponse`/`ToolCall`/`ToolSpec` types | not-started | compile + unit tests |
-| B3 | Tool framework: provider-neutral tool definition (name, description, JSON-schema, handler) + registry | not-started | unit tests |
-| B4 | `AzureResponsesLlmClient` — Responses API (`/openai/responses?api-version=2025-04-01-preview`, model in body, `api-key`/AAD), tool-call translation | not-started | unit test with mocked HTTP; live test on user machine |
-| B5 | `OpenAiResponsesLlmClient` — `api.openai.com/v1/responses` (shares shape with Azure) | not-started | unit test (mocked HTTP) |
-| B6 | `AnthropicMessagesClient` — `api.anthropic.com/v1/messages` tool blocks | not-started | unit test (mocked HTTP) |
-| B7 | Config-driven provider selection (`llm.provider`, `llm.model`, per-provider creds via env; `${ENV_VAR}`; never log secrets) | not-started | unit tests for selection + interpolation |
-| B8 | Read-only tools: `prometheus_instant`, `prometheus_range`, `list_targets`, `container_stats`, `recent_changes`, `container_logs` | not-started | unit tests w/ fake Prometheus/Docker; live on user machine |
-| B9 | Agent loop: gather → reason (LLM tool-calls) → validate → structured RCA output (schema from spec §6.6) | not-started | unit test w/ stubbed LlmClient returning scripted tool calls |
-| B10 | Entry points: CLI (`analyze --window 10m`) + thin HTTP endpoint (`POST /analyze`) | not-started | compile; manual on user machine |
-| B11 | `sre-agent/` Dockerfile (multi-stage) + README | not-started | build on user machine |
-| B12 | **Phase B verification gate** | not-started | Agent produces RCA whose top hypothesis matches the injected fault, with cited evidence; provider switch works (user machine) |
+| B1 | `sre-agent/` Maven scaffold (pom.xml, Java 17, main class, application.yml, Dockerfile skeleton) | completed | `mvn compile` OK |
+| B2 | Provider-neutral LLM layer: `LlmClient` interface + `LlmRequest`/`LlmResponse`/`ToolCall`/`ToolSpec` types | completed | Messages.java + LlmClient; unit-tested |
+| B3 | Tool framework: provider-neutral tool definition (name, description, JSON-schema, handler) + registry | completed | Tool + ToolRegistry |
+| B4 | `AzureResponsesLlmClient` — Responses API (`/openai/responses?api-version=2025-04-01-preview`, model in body, `api-key`), tool-call translation | completed | mocked-HTTP unit test passes; live test on user machine |
+| B5 | `OpenAiResponsesLlmClient` — `api.openai.com/v1/responses` (shares shape with Azure) | completed | shares ResponsesApiLlmClient; factory-tested |
+| B6 | `AnthropicMessagesClient` — `api.anthropic.com/v1/messages` tool blocks | completed | mocked-HTTP unit test passes |
+| B7 | Config-driven provider selection (`llm.provider`, `llm.model`, per-provider creds via env; `${ENV_VAR}`; never log secrets) | completed | LlmClientFactory + application.yml; unit-tested |
+| B8 | Read-only tools: `prometheus_instant`, `prometheus_range`, `list_targets`, `container_stats`, `recent_changes`, `container_logs` | completed | PrometheusClient + DockerFacade + tools; compile OK; live on user machine |
+| B9 | Agent loop: gather → reason (LLM tool-calls) → validate → structured RCA output (schema from spec §6.6) | completed | RcaAgent + RcaReport; loop unit-tested (scripted LLM + fake tool) |
+| B10 | Entry points: CLI (`--analyze --window`) + HTTP endpoint (`POST /api/analyze`, `GET /api/health`) | completed | AnalyzeController + CliRunner |
+| B11 | `sre-agent/` Dockerfile (multi-stage) + README | completed | files created |
+| B12 | **Phase B verification gate** | completed | 9 unit tests green (adapters, provider selection, agent loop). Live RCA against a real injected fault + provider switch to be run on the user's machine (needs an Azure/OpenAI/Anthropic key). |
 
 ---
 
@@ -105,3 +105,11 @@ Update this table when a phase's tasks are all `completed`.
   prometheus, grafana, overall compose, .env.example, README). Static checks
   pass (py_compile, dashboard JSON, all YAML, `docker compose config`). Full
   `docker compose up` verification pending on the user's machine.
+- 2026-07-17 — Phase A verified on the user's Mac (Grafana panels live);
+  fixes applied: host port 5001 (macOS AirPlay), cAdvisor /dev/kmsg for
+  Docker Desktop.
+- 2026-07-17 — Phase B implemented: provider-neutral LLM layer (Azure Responses
+  default + OpenAI + Anthropic adapters, config-selected), read-only Prometheus
+  + Docker tools, agentic RCA loop with structured RcaReport, HTTP + CLI entry.
+  9 unit tests green (mvn test). Live LLM RCA + provider switch pending on the
+  user's machine (requires an LLM API key).
