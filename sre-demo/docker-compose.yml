@@ -45,7 +45,10 @@ services:
       - mongo
       - downstream
     ports:
-      - "5000:5000"
+      # Host 5001 -> container 5000. macOS uses 5000 for AirPlay Receiver
+      # (Control Center), which would otherwise fail with "address already in use".
+      # Internal DNS (prometheus scrape, downstream) still uses container port 5000.
+      - "5001:5000"
     networks: [demo]
 
   cadvisor:

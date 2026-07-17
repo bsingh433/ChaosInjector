@@ -13,7 +13,7 @@ fix**. See [`sre_demo_spec.md`](./sre_demo_spec.md) for the full design and
 
 | Service | URL | Purpose |
 |---|---|---|
-| sample-app | http://localhost:5000 | instrumented backend (chaos target); Mongo CRUD at `/items` |
+| sample-app | http://localhost:5001 | instrumented backend (chaos target); Mongo CRUD at `/items` (host 5001 → container 5000; 5000 avoided because macOS AirPlay uses it) |
 | downstream | http://localhost:6000 | dependency the app calls on `/work` |
 | mongo | localhost:27017 | database backing the CRUD endpoints |
 | cadvisor | http://localhost:8080 | per-container CPU/memory metrics |
@@ -33,11 +33,17 @@ docker compose up --build     # first build pulls base images
 Then:
 - Grafana → http://localhost:3000 (admin/admin) → **Chaos Overview**. The
   sample-app's self-load generator means the panels move immediately.
-- Try the CRUD API:
+- Try the CRUD API (host port **5001**):
   ```bash
-  curl -X POST localhost:5000/items -H 'content-type: application/json' -d '{"name":"x","value":42}'
-  curl localhost:5000/items
+  curl -X POST localhost:5001/items -H 'content-type: application/json' -d '{"name":"x","value":42}'
+  curl localhost:5001/items
   ```
+
+> **macOS note:** the app is mapped to host **5001** because macOS Control Center
+> (AirPlay Receiver) occupies **5000**. When you point ChaosInjector's health-check
+> at the app, use `http://localhost:5001/health`. To use 5000 instead, turn off
+> *System Settings → General → AirDrop & Handoff → AirPlay Receiver* and change the
+> port mapping back to `5000:5000`.
 
 ## Inject chaos and watch
 
