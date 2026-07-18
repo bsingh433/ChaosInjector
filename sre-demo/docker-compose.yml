@@ -100,8 +100,7 @@ services:
     build: ./sre-agent           # or: image: <registry>/sre-demo-sre-agent:<tag>
     container_name: sre-agent
     env_file:                    # LLM provider + credentials (copy from .env.example)
-      - path: .env
-        required: false
+      - .env
     environment:
       PROMETHEUS_URL: "http://prometheus:9090"
       DOCKER_HOST: "unix:///var/run/docker.sock"
