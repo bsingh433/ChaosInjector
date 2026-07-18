@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.sreagent.config.AgentProperties;
@@ -19,6 +20,7 @@ public class ConfirmationGate {
     private final String mode;
     private final BufferedReader in;
 
+    @Autowired
     public ConfirmationGate(AgentProperties props) {
         this(props.getRemediation().getMode(),
                 new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8)));
