@@ -133,6 +133,14 @@ Update this table when a phase's tasks are all `completed`.
   root README end-to-end walkthrough (RCA + remediation). `docker compose
   config` passes. All four phases done and static-verified; remaining
   verification is the live end-to-end run on the user's machine with an LLM key.
+- 2026-07-18 — Live verification on the user's Mac: SRE Agent boots under the
+  overall compose and `POST /api/analyze` returns a well-formed RCA via **Groq**
+  (`openai-chat`, `llama-3.3-70b-versatile`). Fixes landed during bring-up:
+  portable `env_file` string form; `@Autowired` on the `ConfirmationGate`
+  constructor (two-constructor Spring ambiguity); analyze errors surfaced via
+  `@ExceptionHandler` instead of a blank 500; auto-retry of 429/503 honouring
+  `Retry-After` + default `LLM_MAX_OUTPUT_TOKENS` 4000→2000 for Groq's free-tier
+  TPM cap. End-to-end fault→observe→RCA loop confirmed working.
 - 2026-07-18 — Phase E implemented: `openai-chat` provider — a
   `ChatCompletionsLlmClient` (OpenAI-compatible Chat Completions, Bearer auth,
   `tools`/`tool_calls`) usable with a **Groq** API key via
