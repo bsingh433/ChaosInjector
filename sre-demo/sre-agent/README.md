@@ -49,6 +49,12 @@ OPENAI_CHAT_API_KEY=gsk_...             # your Groq key (falls back to OPENAI_AP
 The same provider also drives OpenAI's classic Chat Completions API and other
 compatible gateways — just point `OPENAI_CHAT_BASE_URL` at them.
 
+> **Groq free tier is token-rate-limited** (~12k tokens/min). The agent
+> automatically retries `429` responses honouring the server's `Retry-After`,
+> so a transient limit self-heals. If an RCA persistently trips the limit,
+> shorten the window (`windowMinutes`), lower `LLM_MAX_OUTPUT_TOKENS`, or
+> upgrade your Groq tier.
+
 ## Run
 
 **HTTP service**

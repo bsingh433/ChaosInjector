@@ -12,7 +12,7 @@ agent:
     provider: ${LLM_PROVIDER:azure-responses}   # azure-responses | openai-responses | anthropic-messages | openai-chat
     model: ${LLM_MODEL:gpt-5}
     temperature: ${LLM_TEMPERATURE:0.2}
-    max-output-tokens: ${LLM_MAX_OUTPUT_TOKENS:4000}
+    max-output-tokens: ${LLM_MAX_OUTPUT_TOKENS:2000}
   prometheus-url: ${PROMETHEUS_URL:http://localhost:9090}
   docker-host: ${DOCKER_HOST:unix:///var/run/docker.sock}
   default-target: ${DEFAULT_TARGET:sample-app}

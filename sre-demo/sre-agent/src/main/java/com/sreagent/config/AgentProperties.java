@@ -92,7 +92,7 @@ public class AgentProperties {
         private String provider = "azure-responses";
         private String model = "gpt-5";
         private double temperature = 0.2;
-        private int maxOutputTokens = 4000;
+        private int maxOutputTokens = 2000;
 
         public String getProvider() {
             return provider;
