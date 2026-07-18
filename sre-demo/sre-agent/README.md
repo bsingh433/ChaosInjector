@@ -19,9 +19,18 @@ told what chaos was injected — it discovers the cause from the metrics.
 `start_container`, `abort_chaos` (ends the active ChaosInjector experiment).
 These require human approval per `REMEDIATION_MODE`:
 - `propose` (default) — the agent proposes but never executes; the action is
-  recorded and returned in `recommendedFixes[].proposedAction`.
+  recorded (audit `PROPOSED`) and returned in `recommendedFixes[].proposedAction`.
 - `prompt` — asks for `y/N` on the console (CLI mode).
-- `auto` — executes without asking (demo only).
+- `auto` — executes without asking (demo only); audit `APPROVED`.
+
+**How the fix gets applied:** after producing the RCA, the agent runs every
+`recommendedFixes[].proposedAction` through the gate — *whether or not the model
+called the remediation tool inline*. Many models just fill in `proposedAction`
+and stop, so this post-report pass is what makes `auto` mode actually act (and
+what populates `/api/audit`). Actions already executed inline are not repeated.
+`abort_chaos` is the reliable fix for an injected fault, since it reverts the
+whole experiment; restarting a downstream container will **not** undo an active
+injection.
 
 Every proposed/executed action is written to an audit log — `GET /api/audit`.
 

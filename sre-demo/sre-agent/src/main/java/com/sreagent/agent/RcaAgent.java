@@ -1,7 +1,9 @@
 package com.sreagent.agent;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,6 +12,9 @@ import org.springframework.stereotype.Service;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.sreagent.agent.RcaReport.Fix;
+import com.sreagent.agent.RcaReport.ProposedAction;
 import com.sreagent.config.AgentProperties;
 import com.sreagent.llm.LlmClient;
 import com.sreagent.llm.Messages.LlmMessage;
@@ -58,24 +63,60 @@ public class RcaAgent {
                 + windowMinutes + " minutes. Determine the root cause of any degradation and produce"
                 + " the RCA JSON. If everything looks healthy, say so."));
 
+        // Remediation actions already handled inline (so the post-report pass doesn't repeat them).
+        Set<String> executed = new HashSet<>();
         for (int i = 0; i < props.getMaxIterations(); i++) {
             LlmResponse resp = llm.chat(new LlmRequest(messages, tools.toolSpecs()));
             if (resp.hasToolCalls()) {
                 messages.add(LlmMessage.assistantToolCalls(resp.toolCalls()));
                 for (ToolCall call : resp.toolCalls()) {
-                    String result = runTool(call);
+                    String result = runTool(call, executed);
                     messages.add(LlmMessage.toolResult(call.id(), call.name(), result));
                 }
                 continue;
             }
-            return parseReport(resp.text());
+            RcaReport report = parseReport(resp.text());
+            // Many models describe the fix in recommendedFixes[].proposedAction but never emit a
+            // remediation tool_call. Enforce those proposals through the same gate so behaviour is
+            // driven by REMEDIATION_MODE regardless of whether the model called the tool inline.
+            applyProposedFixes(report, executed);
+            return report;
         }
         log.warn("RCA loop hit max iterations ({}) without a final report", props.getMaxIterations());
         return new RcaReport(null, List.of(), List.of(), List.of(),
                 "Inconclusive: reached the tool-call limit without a final diagnosis.");
     }
 
-    private String runTool(ToolCall call) {
+    /** Run each reversible {@code proposedAction} from the report through the gate (unless already done). */
+    private void applyProposedFixes(RcaReport report, Set<String> executed) {
+        if (report == null || report.recommendedFixes() == null) {
+            return;
+        }
+        for (Fix fix : report.recommendedFixes()) {
+            ProposedAction a = fix == null ? null : fix.proposedAction();
+            if (a == null || a.tool() == null || a.tool().isBlank()) {
+                continue;
+            }
+            Tool tool = tools.get(a.tool());
+            if (tool == null) {
+                log.warn("proposed fix references unknown tool '{}'", a.tool());
+                continue;
+            }
+            if (!tool.requiresConfirmation()) {
+                continue; // only reversible remediation tools are gated/executed
+            }
+            String tgt = normalizeTarget(a.target());
+            if (executed.contains(sig(a.tool(), tgt))) {
+                continue; // the model already invoked this exact action during the loop
+            }
+            ObjectNode args = mapper.createObjectNode();
+            args.put("name", tgt);
+            log.info("applying proposed fix: {} on {}", a.tool(), tgt);
+            runTool(new ToolCall("proposed-" + a.tool(), a.tool(), args.toString()), executed);
+        }
+    }
+
+    private String runTool(ToolCall call, Set<String> executed) {
         Tool tool = tools.get(call.name());
         if (tool == null) {
             return "error: unknown tool '" + call.name() + "'";
@@ -96,12 +137,21 @@ public class RcaAgent {
                 }
                 String result = tool.execute(args);
                 audit.add(call.name(), args.toString(), "APPROVED", result);
+                executed.add(sig(call.name(), normalizeTarget(args.path("name").asText(null))));
                 return result;
             }
             return tool.execute(args); // read-only
         } catch (Exception e) {
             return "error: " + e.getMessage();
         }
+    }
+
+    private String normalizeTarget(String target) {
+        return (target == null || target.isBlank()) ? props.getDefaultTarget() : target;
+    }
+
+    private static String sig(String tool, String target) {
+        return tool + ":" + target;
     }
 
     RcaReport parseReport(String text) {
@@ -143,11 +193,15 @@ public class RcaAgent {
             4. Validate each hypothesis against real tool output before asserting it.
 
             You also have REVERSIBLE remediation tools: restart_container, unpause_container,
-            start_container, abort_chaos. If a fix is warranted, CALL the appropriate remediation
-            tool — it is gated for human approval, so it may return "PROPOSED (not executed)". Either
-            way, record the fix in recommendedFixes[].proposedAction as
-            {"tool": "<tool>", "target": "%s", "reversible": true}. abort_chaos is usually the
-            cleanest fix (it ends the injected fault). Never take destructive actions.
+            start_container, abort_chaos. Whenever a fix is warranted you MUST populate
+            recommendedFixes[].proposedAction as {"tool": "<tool>", "target": "%s",
+            "reversible": true} — the agent applies it according to its remediation mode.
+            If the evidence points to an externally injected fault (a paused container, artificial
+            CPU/memory load, or an injected network failure — i.e. a chaos experiment), prefer
+            abort_chaos: it is the cleanest fix because it ends the experiment and the platform
+            reverts it (unpause / reconnect / kill load). Only choose restart_container /
+            unpause_container / start_container when the evidence specifically calls for it (e.g. an
+            OOM-killed or stopped container). Never take destructive actions.
 
             Rules:
             - Ground every hypothesis in evidence you actually retrieved. Do not guess.

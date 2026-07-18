@@ -165,6 +165,69 @@ class RcaAgentTest {
         assertThat(audit.all().get(0).decision()).isEqualTo("APPROVED");
     }
 
+    /** The model describes the fix in the report but never calls the tool — auto mode must still act. */
+    @Test
+    void executesProposedFixFromReportWhenModelDidNotCallTool() {
+        FakeRemediation tool = new FakeRemediation();
+        AuditLog audit = new AuditLog();
+        StubLlm llm = new StubLlm();
+        llm.scripted.add(new LlmResponse("""
+            {"verdict":"downstream errors",
+             "recommendedFixes":[{"summary":"abort chaos","instructions":["x"],
+               "proposedAction":{"tool":"abort_chaos","target":"sample-app","reversible":true}}]}
+            """, List.of()));
+        RcaAgent agent = new RcaAgent(llm, new ToolRegistry(List.of(tool)),
+                new AgentProperties(), mapper, gate("auto"), audit);
+
+        agent.analyze(10, "sample-app");
+
+        assertThat(tool.executed).isTrue();
+        assertThat(audit.all()).hasSize(1);
+        assertThat(audit.all().get(0).decision()).isEqualTo("APPROVED");
+        assertThat(audit.all().get(0).tool()).isEqualTo("abort_chaos");
+    }
+
+    @Test
+    void proposedFixFromReportIsRecordedButNotExecutedInProposeMode() {
+        FakeRemediation tool = new FakeRemediation();
+        AuditLog audit = new AuditLog();
+        StubLlm llm = new StubLlm();
+        llm.scripted.add(new LlmResponse("""
+            {"verdict":"downstream errors",
+             "recommendedFixes":[{"summary":"abort chaos","instructions":["x"],
+               "proposedAction":{"tool":"abort_chaos","target":"sample-app","reversible":true}}]}
+            """, List.of()));
+        RcaAgent agent = new RcaAgent(llm, new ToolRegistry(List.of(tool)),
+                new AgentProperties(), mapper, gate("propose"), audit);
+
+        agent.analyze(10, "sample-app");
+
+        assertThat(tool.executed).isFalse();
+        assertThat(audit.all()).hasSize(1);
+        assertThat(audit.all().get(0).decision()).isEqualTo("PROPOSED");
+    }
+
+    /** If the model already ran the remediation inline, the post-report pass must not repeat it. */
+    @Test
+    void doesNotRepeatInlineRemediationInPostReportPass() {
+        FakeRemediation tool = new FakeRemediation();
+        AuditLog audit = new AuditLog();
+        StubLlm llm = new StubLlm();
+        llm.scripted.add(new LlmResponse(null,
+                List.of(new ToolCall("c1", "abort_chaos", "{\"name\":\"sample-app\"}"))));
+        llm.scripted.add(new LlmResponse("""
+            {"verdict":"done",
+             "recommendedFixes":[{"summary":"abort chaos","instructions":["x"],
+               "proposedAction":{"tool":"abort_chaos","target":"sample-app","reversible":true}}]}
+            """, List.of()));
+        RcaAgent agent = new RcaAgent(llm, new ToolRegistry(List.of(tool)),
+                new AgentProperties(), mapper, gate("auto"), audit);
+
+        agent.analyze(10, "sample-app");
+
+        assertThat(audit.all()).hasSize(1); // executed once, not twice
+    }
+
     @Test
     void parsesJsonWrappedInFences() {
         AgentProperties props = new AgentProperties();
