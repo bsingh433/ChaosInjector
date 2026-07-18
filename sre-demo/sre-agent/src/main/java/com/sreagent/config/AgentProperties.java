@@ -12,6 +12,7 @@ public class AgentProperties {
     private final Llm llm = new Llm();
     private final Azure azure = new Azure();
     private final OpenAi openai = new OpenAi();
+    private final Chat chat = new Chat();
     private final Anthropic anthropic = new Anthropic();
     private final Remediation remediation = new Remediation();
 
@@ -32,6 +33,10 @@ public class AgentProperties {
 
     public OpenAi getOpenai() {
         return openai;
+    }
+
+    public Chat getChat() {
+        return chat;
     }
 
     public Anthropic getAnthropic() {
@@ -82,7 +87,7 @@ public class AgentProperties {
         this.chaosinjectorUrl = chaosinjectorUrl;
     }
 
-    /** provider ∈ azure-responses | openai-responses | anthropic-messages */
+    /** provider ∈ azure-responses | openai-responses | anthropic-messages | openai-chat */
     public static class Llm {
         private String provider = "azure-responses";
         private String model = "gpt-5";
@@ -170,6 +175,28 @@ public class AgentProperties {
     }
 
     public static class OpenAi {
+        private String apiKey = "";
+        private String baseUrl = "https://api.openai.com/v1";
+
+        public String getApiKey() {
+            return apiKey;
+        }
+
+        public void setApiKey(String apiKey) {
+            this.apiKey = apiKey;
+        }
+
+        public String getBaseUrl() {
+            return baseUrl;
+        }
+
+        public void setBaseUrl(String baseUrl) {
+            this.baseUrl = baseUrl;
+        }
+    }
+
+    /** OpenAI-compatible Chat Completions (OpenAI classic / Groq / other gateways). */
+    public static class Chat {
         private String apiKey = "";
         private String baseUrl = "https://api.openai.com/v1";
 

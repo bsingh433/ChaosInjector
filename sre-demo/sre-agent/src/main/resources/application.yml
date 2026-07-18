@@ -9,7 +9,7 @@ spring:
 # provider's credentials need to be present.
 agent:
   llm:
-    provider: ${LLM_PROVIDER:azure-responses}   # azure-responses | openai-responses | anthropic-messages
+    provider: ${LLM_PROVIDER:azure-responses}   # azure-responses | openai-responses | anthropic-messages | openai-chat
     model: ${LLM_MODEL:gpt-5}
     temperature: ${LLM_TEMPERATURE:0.2}
     max-output-tokens: ${LLM_MAX_OUTPUT_TOKENS:4000}
@@ -27,6 +27,9 @@ agent:
   openai:
     api-key: ${OPENAI_API_KEY:}
     base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+  chat:   # OpenAI-compatible Chat Completions (OpenAI classic / Groq / gateways)
+    api-key: ${OPENAI_CHAT_API_KEY:${OPENAI_API_KEY:}}
+    base-url: ${OPENAI_CHAT_BASE_URL:https://api.openai.com/v1}
   anthropic:
     api-key: ${ANTHROPIC_API_KEY:}
     version: ${ANTHROPIC_VERSION:2023-06-01}

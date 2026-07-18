@@ -26,6 +26,7 @@ class LlmClientFactoryTest {
         assertThat(build("azure-responses").provider()).isEqualTo("azure-responses");
         assertThat(build("openai-responses").provider()).isEqualTo("openai-responses");
         assertThat(build("anthropic-messages").provider()).isEqualTo("anthropic-messages");
+        assertThat(build("openai-chat").provider()).isEqualTo("openai-chat");
     }
 
     @Test

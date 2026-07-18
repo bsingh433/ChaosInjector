@@ -268,7 +268,7 @@ or Anthropic/Claude by changing config only — no code change.
 **Provider selection (config):**
 ```yaml
 llm:
-  provider: azure-responses        # azure-responses | openai-responses | anthropic-messages
+  provider: azure-responses        # azure-responses | openai-responses | openai-chat | anthropic-messages
   model: gpt-5                     # model/deployment name sent IN THE REQUEST BODY
   temperature: 0.2
   maxOutputTokens: 4000
@@ -291,6 +291,16 @@ Body:   { "model": "${llm.model}", "input": [...], "tools": [...] }
 `Authorization: Bearer ${OPENAI_API_KEY}`, model in body. Same request shape as
 Azure (both are the Responses API), so the Azure and OpenAI adapters share most
 code.
+
+**OpenAI-compatible Chat Completions (OpenAI classic / Groq / others).**
+`POST {baseUrl}/chat/completions`, `Authorization: Bearer <key>`, model in body,
+OpenAI-style `tools` + `tool_calls`. Works with any OpenAI-compatible endpoint by
+setting the base URL — notably **Groq** (`https://api.groq.com/openai/v1`, a
+tool-capable model such as `llama-3.3-70b-versatile`), as well as OpenAI's own
+Chat Completions API and gateways like Together/Fireworks/Ollama. Groq does
+**not** implement the Responses API, so it must use this `openai-chat` provider.
+Config: `OPENAI_CHAT_BASE_URL` (default `https://api.openai.com/v1`) and a key
+(`OPENAI_CHAT_API_KEY`, falling back to `OPENAI_API_KEY`).
 
 **Anthropic / Claude — Messages API.** `POST https://api.anthropic.com/v1/messages`,
 `x-api-key: ${ANTHROPIC_API_KEY}`, `anthropic-version` header, model in body,
@@ -450,6 +460,9 @@ prometheus → grafana → sre-agent.
   - `azure-responses` → `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_VERSION`,
     `AZURE_OPENAI_API_KEY` (or Azure AD); `llm.model` = deployment name.
   - `openai-responses` → `OPENAI_API_KEY`; `llm.model` = e.g. `gpt-5`.
+  - `openai-chat` → `OPENAI_CHAT_BASE_URL` + `OPENAI_CHAT_API_KEY` (or
+    `OPENAI_API_KEY`); OpenAI-compatible Chat Completions. For **Groq**: base URL
+    `https://api.groq.com/openai/v1`, `llm.model` a tool-capable Groq model.
   - `anthropic-messages` → `ANTHROPIC_API_KEY`, `ANTHROPIC_VERSION`;
     `llm.model` = e.g. a Claude model id.
 - **No secrets in Git, images, logs, or the spec.** `${ENV_VAR}` interpolation

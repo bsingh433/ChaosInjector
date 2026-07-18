@@ -31,6 +31,7 @@ which verification applies.
 | B | SRE Agent — read-only RCA (pluggable LLM) | completed (unit-verified; live LLM run on user machine) |
 | C | SRE Agent — gated reversible remediation | completed (unit-verified; live run on user machine) |
 | D | Packaging, overall compose, docs | completed (static-verified; full run on user machine) |
+| E | Extra LLM provider — OpenAI-compatible Chat Completions (Groq) | completed (unit-verified; live Groq run on user machine) |
 
 Update this table when a phase's tasks are all `completed`.
 
@@ -98,6 +99,15 @@ Update this table when a phase's tasks are all `completed`.
 
 ---
 
+## Phase E — OpenAI-compatible Chat Completions provider (Groq)
+
+| ID | Task | Status | Verification / notes |
+|----|------|--------|----------------------|
+| E1 | `ChatCompletionsLlmClient` — `POST {baseUrl}/chat/completions`, OpenAI `tools`/`tool_calls`, Bearer auth | completed | mocked-HTTP unit test (parse tool_calls + text, error payload, Bearer/URL/body asserts) |
+| E2 | Config: `agent.chat.baseUrl` + `agent.chat.apiKey` (env `OPENAI_CHAT_BASE_URL` / `OPENAI_CHAT_API_KEY` → `OPENAI_API_KEY`); factory `openai-chat` case | completed | `AgentProperties.Chat` + application.yml block; factory unit test extended |
+| E3 | `.env.example` + READMEs: document `openai-chat` + Groq example | completed | `.env.example` Groq block; sre-agent README + spec updated |
+| E4 | **Phase E verification gate** | completed | 14 unit tests green (`mvn test`). Live Groq RCA (real key + tool-calling model) to be run on the user's machine |
+
 ## Change log
 
 - 2026-07-17 — plan created; awaiting user confirmation to start Phase A.
@@ -123,3 +133,11 @@ Update this table when a phase's tasks are all `completed`.
   root README end-to-end walkthrough (RCA + remediation). `docker compose
   config` passes. All four phases done and static-verified; remaining
   verification is the live end-to-end run on the user's machine with an LLM key.
+- 2026-07-18 — Phase E implemented: `openai-chat` provider — a
+  `ChatCompletionsLlmClient` (OpenAI-compatible Chat Completions, Bearer auth,
+  `tools`/`tool_calls`) usable with a **Groq** API key via
+  `OPENAI_CHAT_BASE_URL=https://api.groq.com/openai/v1`. Added `agent.chat`
+  config (`OPENAI_CHAT_API_KEY` → `OPENAI_API_KEY` fallback), factory
+  `openai-chat` case, `.env.example` + README + spec docs. 14 unit tests green
+  (`mvn test`). Live Groq RCA pending on the user's machine (needs a Groq key
+  and a tool-calling model).

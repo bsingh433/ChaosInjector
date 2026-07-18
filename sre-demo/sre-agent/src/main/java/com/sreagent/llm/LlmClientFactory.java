@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import com.sreagent.config.AgentProperties;
 import com.sreagent.llm.providers.AnthropicMessagesClient;
 import com.sreagent.llm.providers.AzureResponsesLlmClient;
+import com.sreagent.llm.providers.ChatCompletionsLlmClient;
 import com.sreagent.llm.providers.OpenAiResponsesLlmClient;
 
 /**
@@ -26,8 +27,10 @@ public class LlmClientFactory {
                     new OpenAiResponsesLlmClient(http, mapper, props.getLlm(), props.getOpenai());
             case "anthropic-messages" ->
                     new AnthropicMessagesClient(http, mapper, props.getLlm(), props.getAnthropic());
+            case "openai-chat" ->
+                    new ChatCompletionsLlmClient(http, mapper, props.getLlm(), props.getChat());
             default -> throw new LlmException("Unknown agent.llm.provider: '" + provider
-                    + "' (expected azure-responses | openai-responses | anthropic-messages)");
+                    + "' (expected azure-responses | openai-responses | anthropic-messages | openai-chat)");
         };
     }
 }

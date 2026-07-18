@@ -7,7 +7,9 @@ told what chaos was injected — it discovers the cause from the metrics.
 - **Port:** 8085 (HTTP service)
 - **LLM:** provider-agnostic via a thin `LlmClient` layer. Default **Azure OpenAI
   Responses API** (`api-version 2025-04-01-preview`, model in the request body);
-  also `openai-responses` and `anthropic-messages`. Switch with `LLM_PROVIDER`.
+  also `openai-responses`, `anthropic-messages`, and `openai-chat` (any
+  OpenAI-compatible Chat Completions endpoint, e.g. **Groq**). Switch with
+  `LLM_PROVIDER`.
 
 ## Tools
 **Read-only:** `prometheus_instant`, `prometheus_range`, `list_targets`,
@@ -25,7 +27,7 @@ Every proposed/executed action is written to an audit log — `GET /api/audit`.
 
 ## Configure (env)
 ```
-LLM_PROVIDER=azure-responses            # azure-responses | openai-responses | anthropic-messages
+LLM_PROVIDER=azure-responses            # azure-responses | openai-responses | anthropic-messages | openai-chat
 LLM_MODEL=gpt-5
 AZURE_OPENAI_ENDPOINT=https://<resource>.openai.azure.com
 AZURE_OPENAI_API_VERSION=2025-04-01-preview
@@ -35,6 +37,17 @@ DOCKER_HOST=unix:///var/run/docker.sock
 DEFAULT_TARGET=sample-app
 ```
 Only the selected provider's credentials are needed. Secrets via env only.
+
+**Using a Groq API key** (`openai-chat` provider — OpenAI-compatible Chat
+Completions, `Authorization: Bearer`):
+```
+LLM_PROVIDER=openai-chat
+LLM_MODEL=llama-3.3-70b-versatile       # a Groq model that supports tool use
+OPENAI_CHAT_BASE_URL=https://api.groq.com/openai/v1
+OPENAI_CHAT_API_KEY=gsk_...             # your Groq key (falls back to OPENAI_API_KEY)
+```
+The same provider also drives OpenAI's classic Chat Completions API and other
+compatible gateways — just point `OPENAI_CHAT_BASE_URL` at them.
 
 ## Run
 
